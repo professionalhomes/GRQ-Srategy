@@ -47,6 +47,34 @@ instrument**: it can never be redeemed for cash or swapped for other currencies
 >    power for panels*, never as a tradeable asset, to avoid adding a second
 >    regulated instrument on top of the first.
 
+### 1.1 How the panel investment actually works (the core concept)
+
+This is **not** rooftop solar that the buyer installs and uses themselves. The
+buyer **never takes the panel home.**
+
+- GRQ Solar builds and operates **solar farms** (large grid-connected arrays).
+- An investor buys **one $500 panel that physically stays inside a farm**. They
+  own the panel (or a claim to its output), but it remains in GRQ Solar's
+  project.
+- The farm's electricity is **sold** — to the grid or a utility under a contract
+  (Power Purchase Agreement / feed-in tariff). The sale produces **money**.
+- The investor is paid **their panel's share of that revenue** as a **cash
+  return**. The energy itself belongs to the project and is sold; the investor
+  receives money, not electricity.
+
+**Analogy:** like owning one apartment in a building you never live in — the
+operator rents it out and forwards your share of the rent. Here the "rent" is
+electricity revenue.
+
+**Illustrative economics (vary by project, not fixed):** a ~400 W panel in a
+sunny location might produce ~600 kWh/year; sold at ~$0.10/kWh that is ~$60 gross,
+or perhaps ~$40–50/year net after operating costs — roughly an 8–10 % annual
+return on $500. **These are placeholders only**; real per-project economics
+(hardware, install, land, grid, development, financing) are introduced later.
+
+This income-producing structure is precisely what makes the panel an
+**investment product** and drives the securities/licensing work in §9.
+
 ---
 
 ## 2. Goals & Non-Goals
@@ -79,14 +107,15 @@ instrument**: it can never be redeemed for cash or swapped for other currencies
                          ┌───────────────▼────────────────────────────┐
                          │            Application Backend              │
                          │ Auth · Orders · Projects · Pricing · Ledger │
-                         │ Returns/Payout engine                       │
+                         │ Returns engine · Transparency · Withdrawals │
                          └──┬──────────┬──────────┬──────────┬─────────┘
                             │          │          │          │
               ┌─────────────▼┐ ┌───────▼────┐ ┌───▼──────┐ ┌─▼──────────────┐
               │ Fiat Payments│ │ Off-chain  │ │ On-chain │ │ Project Registry│
               │ Stripe/CC/   │ │ Ledger     │ │ Solana   │ │ + Returns ledger│
               │ PayPal       │ │ (GRQ Credit│ │ (GRQ SPL,│ │ (revenue in →   │
-              │              │ │  balances) │ │  wallet) │ │  payouts out)   │
+              │              │ │  balances) │ │  wallet, │ │  payouts out,   │
+              │              │ │            │ │  anchors)│ │  on-chain anchor)│
               └──────────────┘ └─────┬──────┘ └────┬─────┘ └─────────────────┘
                                      └──────┬──────┘
                                       1:1 Credit→Token bridge
@@ -98,7 +127,9 @@ instrument**: it can never be redeemed for cash or swapped for other currencies
 | **Auth & Accounts** | Sign-up, KYC tier, wallet linking (Phantom / Connect). |
 | **Catalog & Orders** | Panels @ $500, quantities, order lifecycle. |
 | **Project Registry** | Each project's metadata; maps owned panels → a project. |
-| **Returns / Payout engine** | Records project revenue in, computes & pays investor returns out (see §6). |
+| **Energy & Revenue Transparency** | Stores team-entered **physical metering** values (kWh) and sale proceeds per project (**monthly**); shows auditable data to each investor and **anchors each month's figures on-chain** (Solana) for tamper-evidence (§6.3). |
+| **Returns / Payout engine** | Records project revenue in, computes each investor's monthly return, displays earnings in-account, and processes withdrawals (§6.3). |
+| **Withdrawal / Cash-out rail** | Pays earnings to the user's **bank account or PayPal**; KYC/AML, thresholds, fees, tax reporting. |
 | **Payments (fiat)** | Stripe, credit card, PayPal; idempotent webhooks. |
 | **Payments (token)** | Verify inbound GRQ to company wallet; debit GRQ Credits. |
 | **Pricing Engine** | Single source of truth for current GRQ price (§5). |
@@ -214,15 +245,86 @@ Both increase `D`, nudging the price up.
 - Off-chain: system debits GRQ Credit balance.
 - **No bonus** on GRQ/Credit-paid purchases.
 
-### 6.3 Returns / payouts (the investment side)
-- Each owned panel is linked to a **project** in the registry.
-- Project revenue (electricity sales) flows in; the **Returns engine** records it
-  and allocates **returns to panel owners** per that project's rules.
-- **v1 working assumption:** returns are computed per project (rate not fixed)
-  and **paid in fiat (USD)** to the investor's payout method. *Open question:*
-  optionally allow payout as GRQ Credits or auto-reinvest into new panels.
-- The returns ledger is **separate** from the GRQ ledger — different money, different
-  accounting, different regulatory treatment.
+### 6.3 Returns: transparency, display, withdrawal & conversion (the investment side)
+
+Each owned panel is linked to a **project**. Project electricity is sold; the
+investor is paid their panel's share of the proceeds. This must be **transparent,
+visible in-account, and withdrawable.**
+
+**(a) Transparency of energy & proceeds.** Source data is **physical metering**:
+the team enters the measured numerical values into the platform **monthly** per
+project. From these the platform computes and displays, each month:
+- **Energy produced (kWh)** — the team-entered physical meter reading;
+- **Electricity sale price** and **gross sale proceeds**;
+- **Operating costs / fees** deducted;
+- **Net distributable revenue**, and **each investor's allocated share** (pro-rata
+  to panels owned in that project).
+
+All figures are written to an **append-only, auditable record** (who entered what,
+when) and surfaced in the user's dashboard, down to *their own panels'* production
+and earnings. Because the readings are team-entered, the audit trail,
+month-over-month consistency checks, **and on-chain anchoring (e)** are the
+integrity safeguards — retain the underlying meter records so figures can be
+substantiated if challenged.
+
+**(b) In-account earnings.** Each month a user's confirmed net returns accrue as a
+**withdrawable cash balance (USD)** in their account — kept in a ledger **separate
+from GRQ** (different money, different accounting, different regulation).
+
+**(c) Withdrawal / cash-out.** Users can withdraw their earnings to:
+- **Bank account** (transfer/ACH/SEPA-equivalent);
+- **PayPal**.
+
+(Credit-card payout is **not** offered — general payouts to cards are not reliably
+supported across networks/regions. Bank and PayPal are the withdrawal rails.)
+
+Withdrawals are subject to **KYC/AML**, **minimum thresholds**, **processing
+fees**, and **tax withholding/reporting** per jurisdiction.
+
+**(d) Convert earnings → GRQ (optional).** Instead of withdrawing, a user may
+convert any portion of their cash earnings into **GRQ at the current price
+`P(D)`**: `GRQ_received = earnings_USD / P(D)`. This:
+- is **user-initiated and optional**;
+- earns **no bonus** (only fiat *panel purchases* earn bonus);
+- **increases `D`** (more GRQ distributed), nudging the price up like any other
+  issuance;
+- is **value-neutral at the moment of conversion** (full current price, no
+  discount, no arbitrage).
+
+**(e) On-chain transparency anchoring (Solana).** To make the monthly figures
+**immutable and independently verifiable**, each month's transparency dataset is
+committed on-chain (reusing the same Solana stack as GRQ; cost ≈ one small tx per
+project per month). What gets published on-chain:
+
+| On-chain (public) | Off-chain (private, referenced) |
+|---|---|
+| Project-level aggregates in clear: total kWh metered, sale price, gross proceeds, costs, net distributable (non-personal data). | Full dataset incl. **per-investor** allocations (personal data) — stored in DB + immutable store (e.g. IPFS/Arweave). |
+| A **Merkle root** committing every investor's individual allocation for the month. | Each investor's leaf + **Merkle proof** (lets them verify *their own* earning is in the committed set without exposing anyone else). |
+| A **content hash / URI** of the full dataset, and the **distribution batch hash** (paid amounts). | The raw figures the hashes commit to. |
+
+This yields three verifiable guarantees, open to anyone via a public
+**verification page**: (1) the published data has **not been altered** since
+commit; (2) an investor's **own earning was included** in that month's committed
+set (Merkle proof); (3) **payouts matched** the committed allocations.
+
+> **Honest scope — what the chain does NOT prove (the "oracle problem").**
+> On-chain anchoring proves the *record is unaltered and internally consistent* —
+> **not** that the physical meter reading was correct at the source. Input
+> integrity still rests on the metering process. Roadmap to strengthen the input:
+> (i) attach **signed meter exports/photos** to each monthly entry; (ii) later,
+> feed **IoT/oracle data directly from metering hardware** on-chain to reduce
+> manual entry. State this limitation plainly so "blockchain transparency" is not
+> over-claimed.
+
+**Privacy note:** never write raw personal data on-chain — only aggregates and
+hashes/Merkle roots. This keeps per-investor financials private while remaining
+verifiable (relevant to APPI/GDPR; see §9).
+
+> **Critical distinction to preserve:** *Returns* are genuine income from energy
+> sales and **are** withdrawable to fiat. *GRQ* (bonus + converted) remains
+> **spend-only on panels and never cashable.** Converting earnings into GRQ is a
+> one-way door from cashable money into non-cashable purchasing power — the UI must
+> make this explicit.
 
 ### 6.4 Transfers
 - **GRQ token → token:** on-chain transfer (network fee only).
@@ -288,13 +390,35 @@ too fast margins compress — tune `B`/`α` **prospectively**, never retroactive
 - Never market GRQ as an investment or guaranteed appreciation; frame it as
   loyalty purchasing power for panels.
 
-### 9.3 Cross-cutting
+### 9.3 Paying money out to users (NEW — withdrawals)
+- Paying investor earnings out to **bank/PayPal** means the platform now **moves
+  real money to users**. This can implicate **payout/money-transmission** rules
+  and the providers' own payout-product terms (PayPal Payouts; Stripe Connect may
+  power bank transfers under the hood). Confirm licensing and processor
+  eligibility per jurisdiction.
+- **Stronger KYC/AML on cash-out:** identity verification before first
+  withdrawal, sanctions screening, source/destination checks, and velocity
+  limits. Cash-out is the highest-risk surface for fraud and laundering.
+- **Tax on returns:** returns are investor income — expect **withholding and
+  reporting obligations** and periodic investor statements; design the ledger to
+  produce them. Converting earnings → GRQ may still be a taxable event in some
+  jurisdictions; confirm with counsel/accountant.
+- **Transparency as a legal asset:** the auditable energy/revenue records (§6.3a)
+  both build trust and support disclosure/anti-fraud obligations — keep them
+  verifiable, not self-asserted.
+
+### 9.4 Cross-cutting
 - **AML/KYC:** tiered — light for browsing, stricter for investing, wallet
-  linking and large GRQ transfers.
+  linking, large GRQ transfers, and **any cash-out**.
 - **Consumer protection / 特定商取引法:** clear disclosure of pricing mechanics,
-  bonus terms, returns variability, and that GRQ has no cash value.
+  bonus terms, returns variability, withdrawal fees/limits, and that GRQ has no
+  cash value.
 - **Tax:** treatment of returns, bonuses, and revenue-recognition timing — with
   an accountant, per jurisdiction.
+- **Data protection (APPI / GDPR):** on-chain data is immutable and cannot be
+  erased — so put **only non-personal aggregates and hashes/Merkle roots**
+  on-chain. Keep all personal/per-investor data off-chain where it can be
+  corrected or deleted on request (§6.3e privacy note).
 
 **Recommended posture:** (a) get securities/licensing clarity on the
 panel-returns product *before* taking investor money; (b) launch GRQ as
@@ -312,6 +436,7 @@ an opt-in advanced feature behind stricter KYC and a legal green-light.
 | Backend | Node.js/NestJS or Go | Strong typing, webhooks. |
 | DB | PostgreSQL | Double-entry ledgers (GRQ + returns), ACID, audit. |
 | On-chain | Solana + SPL Token | Low fees, fast finality. |
+| Transparency anchor | Solana (program/memo) + Merkle trees; IPFS/Arweave | Tamper-evident monthly records — hashes/roots on-chain, full data off-chain. |
 | Fiat | Stripe (+ PayPal SDK) | Cards, wallets. |
 | Infra | Containerized, IaC | Reproducible, auditable. |
 
@@ -326,7 +451,7 @@ is a **double-entry** record. On-chain state is mirrored and reconciled nightly.
 |---|---|---|
 | **P0 — Foundations** | Accounts, catalog ($500 panels), fiat checkout (Stripe), order lifecycle, **project registry**. | Sell a panel for fiat, linked to a project. |
 | **P1 — Off-chain GRQ** | Pricing engine, bonus issuance as **GRQ Credits**, ledger, referral attribution, Credit transfers + fee. | Bonus & referral Credits issued & spendable; price log audited. |
-| **P2 — Returns** | Project-revenue intake, **returns/payout engine** (fiat), investor statements. | Returns paid from real project revenue, per project. |
+| **P2 — Returns & transparency** | Monthly team-entered metering intake per project, **transparency dashboard** (kWh, proceeds, costs, your share), **on-chain anchoring** (aggregates + Merkle root + public verification page), in-account earnings balance, **withdrawal rail** (bank/PayPal), cash-out KYC, investor statements, **earnings→GRQ conversion**. | Investor sees auditable monthly production & earnings, can **independently verify them on-chain**, and can withdraw to fiat or convert to GRQ. |
 | **P3 — On-chain GRQ** | SPL token, company wallet, Phantom linking, on-chain payouts, GRQ payment verification. | Wallet user earns & spends on-chain GRQ. |
 | **P4 — Bridge** | Credit→Token 1:1 conversion, reconciliation jobs, treasury dashboard. | Invariant (§7) holds under load test. |
 | **P5 — Hardening** | Security review, KYC/AML, **securities/licensing sign-off**, monitoring, referral-fraud controls. | Legal green-light; pen-test passed. |
@@ -339,6 +464,10 @@ is a **double-entry** record. On-chain state is mirrored and reconciled nightly.
 |---|---|
 | Panel-returns product = unregistered securities offering | Securities/licensing review before taking funds; variable (not guaranteed) returns; revenue-funded payouts only. |
 | Returns funded from new sales (Ponzi pattern) | Hard separation of returns ledger from sales; per-project revenue-in vs payout-out monitoring. |
+| Withdrawal fraud / money laundering | Cash-out KYC, sanctions screening, source/destination checks, velocity & threshold limits. |
+| Team-entered metering figures disputed or mis-keyed | Append-only audit trail (who/when), month-over-month consistency checks, **on-chain anchoring (immutable once published)**, retained meter records for substantiation. |
+| "Blockchain" over-claimed (oracle problem) | State plainly that on-chain proves *record integrity*, not *physical-reading correctness*; roadmap to signed/IoT meter feeds (§6.3e). |
+| Personal financial data exposed on a public chain | Anchor only aggregates + hashes/Merkle roots on-chain; raw per-investor data stays off-chain (§6.3e, §9). |
 | GRQ reclassified as crypto-asset/security | Off-chain-first; no cash-out; legal review; loyalty framing. |
 | "Points you can't spend" | Panel-supply reserve sized to GRQ liability (§8). |
 | Referral abuse / self-referral | KYC, fiat-only referral trigger, velocity limits, manual review. |
@@ -350,13 +479,18 @@ is a **double-entry** record. On-chain state is mirrored and reconciled nightly.
 
 ## 13. Open Questions for Stakeholders
 
-1. **Returns:** paid in fiat only, or optionally GRQ Credits / auto-reinvest?
-   What determines each project's return rate and cadence?
-2. Confirm GRQ parameters: `P₀=$0.005`, `α=9`, `B=5%`, `R=2%`, `f=0.5%`.
-3. Is over-issuance past `N₀` a real plan or a contingency only?
-4. On-chain GRQ token in v1, or Credits-only at launch?
-5. First target markets/projects (drives securities & tax scoping).
-6. Expected panel sales volume & cadence (drives treasury & returns sizing).
+1. **Returns:** what determines each project's return *rate* (the metering
+   feed, monthly cadence, and bank/PayPal rails are now settled)?
+2. **Withdrawals:** minimum withdrawal amount and fee structure?
+3. Confirm GRQ parameters: `P₀=$0.005`, `α=9`, `B=5%`, `R=2%`, `f=0.5%`.
+4. Is over-issuance past `N₀` a real plan or a contingency only?
+5. On-chain GRQ token in v1, or Credits-only at launch?
+6. First target markets/projects (drives securities & tax scoping).
+7. Expected panel sales volume & cadence (drives treasury & returns sizing).
+
+> **Settled (this round):** transparency source = team-entered **physical
+> metering** values; reporting/earnings cadence = **monthly**; withdrawal rails =
+> **bank + PayPal** (no credit-card payout).
 
 ---
 
