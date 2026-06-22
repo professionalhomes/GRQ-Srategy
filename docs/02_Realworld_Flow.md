@@ -29,8 +29,10 @@ where `D` = cumulative GRQ distributed to users.
 
 **Two money flows, kept separate:**
 - **GRQ loyalty loop** — bonus tokens on fiat purchases (this document's focus).
-- **Investment returns** — paid to panel owners from project electricity revenue
-  (see §9; rate is project-specific and not yet fixed).
+- **Investment returns** — transparent cash earnings paid to panel owners from
+  project electricity revenue, **anchored on-chain for verification**,
+  **withdrawable to fiat** or convertible to GRQ (see §9; rate is project-specific
+  and not yet fixed).
 
 ---
 
@@ -192,32 +194,94 @@ price continues up the same straight line — no discontinuity, no divide-by-zer
 
 ---
 
-## 9. The investment side — returns from project revenue
+## 9. The investment side — transparent returns, withdrawal & conversion
 
 Separate from the GRQ loop, each $500 panel earns the investor a **return paid
-from its project's electricity revenue**. Per the brief, the **return rate is not
-fixed** — it varies by project and country (hardware, install, land, grid,
-development and financing costs all differ). So this section is **structure, not a
-promised yield.**
+from its project's electricity revenue**. The **return rate is not fixed** — it
+varies by project and country. So the numbers below are **illustrative structure,
+not a promised yield.**
 
 ```
-Project electricity revenue ──► Returns engine ──► Investor payouts (per panel owned)
-   (varies by project)            (records in,        (USD; cadence per project)
-                                   allocates out)
+Project electricity sold ──► Transparency record ──► Investor's in-account ──► Withdraw to fiat
+ (kWh × price = proceeds)     (monthly, from team-     cash earnings (USD)      (bank / PayPal)
+                              entered meter readings)        │
+                              + anchored on-chain            └──► or convert to GRQ (optional)
+                              (Solana: aggregates +
+                               Merkle root, verifiable)
 ```
 
-**Illustrative only — placeholder, not a commitment.** *If* a given project paid,
-say, a 10 % annual return, one $500 panel would pay ~$50/year; the actual figure
-is set per project once economics are introduced. Returns are:
+### 9.1 Transparency — what Aiko sees for her 1 panel (one month, illustrative)
 
-- funded **only from genuine project revenue** (never from new panel sales — §9.1
-  of the strategy doc);
-- tracked in a **ledger separate** from GRQ;
-- in v1, **paid in fiat (USD)**; optionally GRQ Credits or auto-reinvest (open
-  question).
+Each month the team enters the **physical meter readings** per project; the
+platform computes and shows each investor:
 
-This is the dimension that makes the panel an **investment product** and drives
-the primary regulatory work (securities/licensing) before launch.
+| Shown in her dashboard | Value |
+|---|---|
+| Project | "Farm #7" (her panel is unit #... in it) |
+| Energy her panel produced (metered) | 50 kWh |
+| Electricity sale price | $0.10 / kWh |
+| **Gross proceeds (her share)** | **$5.00** |
+| Operating costs/fees (her share) | −$1.00 |
+| **Net earnings credited this month** | **$4.00** |
+
+Over twelve such months that is ~$48/year on her $500 panel (~9.6 %) — *example
+only*. Every figure traces to the **team-entered physical metering value** and an
+**append-only audit trail** (who entered what, when), with underlying meter
+records retained for substantiation.
+
+### 9.2 Aiko's accrued earnings — two choices
+
+After three months her monthly credits have accrued to **$12.00** — real,
+withdrawable money in an account ledger entirely separate from her GRQ.
+
+**Choice A — withdraw to fiat:**
+| | Value |
+|---|---|
+| Withdraws to | **bank account or PayPal** |
+| Receives | $12.00 minus any withdrawal fee, subject to cash-out KYC |
+| Note | credit-card payout is not offered |
+
+**Choice B — convert earnings to GRQ** (optional, at current price, say $0.025):
+| | Value |
+|---|---|
+| Converts | $12.00 → 12.00 ÷ $0.025 = **480 GRQ** |
+| Bonus | **0** (only fiat *panel purchases* earn bonus) |
+| Effect | increases `D`, nudges price up; value-neutral at conversion (full price, no discount) |
+
+> **The key distinction:** her **$12 returns are cashable**. If she converts them
+> to GRQ, she has crossed a **one-way door** — that 480 GRQ is now spend-only on
+> panels and **can never be cashed out again.** The UI must state this plainly.
+
+### 9.3 On-chain verification — how Aiko *trusts* the $4.00
+
+Each month, after the team enters the metering values, the platform commits that
+month's record on **Solana**:
+
+| Step | Detail |
+|---|---|
+| Off-chain | Full dataset (incl. every investor's allocation) saved to DB + IPFS |
+| On-chain (public) | Farm #7 aggregates in clear: **8,200 kWh metered, $0.10/kWh, $820 gross, $164 costs, $656 net** |
+| On-chain (public) | **Merkle root** of all investor allocations + the dataset's content hash + payout-batch hash |
+| Aiko gets | a **Merkle proof** for her own leaf (`panel #..., 50 kWh, $4.00`) |
+
+Now Aiko (or anyone) can independently confirm, on a public **verification page**:
+1. **Unaltered** — the published Farm #7 data still matches the on-chain hash; the
+   team cannot quietly rewrite last month's numbers.
+2. **Included** — her $4.00 was part of the committed set (her Merkle proof checks
+   against the on-chain root) — without revealing anyone else's amounts.
+3. **Paid correctly** — the payout batch matches the committed allocations.
+
+> **What this does and doesn't prove.** It proves the **record is genuine and
+> never changed** — strong, real transparency. It does **not** prove the meter
+> itself read correctly (the "oracle problem"): that still rests on the metering
+> process, backed by retained signed meter records, and later by direct IoT/oracle
+> feeds. The platform states this honestly rather than over-claiming "blockchain =
+> guaranteed truth."
+
+Returns are funded **only from genuine project revenue** (never from new panel
+sales — strategy §9.1). This income-and-withdrawal structure is what makes the
+panel an **investment product** and drives the securities/licensing work before
+launch.
 
 ---
 
@@ -229,13 +293,15 @@ the primary regulatory work (securities/licensing) before launch.
         │ 5% bonus           │ owns panel            │ GRQ price = $0.005·(1+9·D/N0)
         │ @ current price    │ linked to a project   │  rises as D grows
         ▼                    ▼                       │
-  Gets GRQ / GRQ Credit   Earns RETURNS  ◄───────────┘
-        │                  (from project
-        │                   electricity revenue,
-        │                   paid in fiat — §9)
-        │ (spend-only on panels — never cash)
-        ▼
-  Buys MORE panels with GRQ  (no new bonus on GRQ-paid orders)
+  Gets GRQ / GRQ Credit   Project sells energy  ◄────┘
+        │                  → transparent RETURNS shown in-account (cash, USD)
+        │                       │
+        │                       ├──► WITHDRAW to bank / PayPal  (cashable ✓)
+        │                       │
+        │                       └──► or CONVERT to GRQ  (one-way: now non-cashable)
+        │ (spend-only on panels — never cash)        │
+        ▼                                            ▼
+  Buys MORE panels with GRQ  ◄───────────────────────┘  (no new bonus on GRQ-paid orders)
         │
         ▼
    GRQ returns to GRQ Solar ──► loop closes
@@ -243,9 +309,11 @@ the primary regulatory work (securities/licensing) before launch.
 
 **The flywheel:** fiat sales → cheap early GRQ + rising price → early investors'
 purchasing power grows → they buy more panels → more sales; meanwhile each panel
-pays returns from real project revenue. Referrals widen the funnel. Guardrails:
-**GRQ is loyalty purchasing power, never cashable; returns come only from project
-revenue, never from new inflows.**
+pays **transparent, withdrawable** returns from real project revenue, which the
+user can cash out or roll into GRQ. Referrals widen the funnel. Guardrails:
+**returns are real cashable income (transparent, withdrawable); GRQ is loyalty
+purchasing power that is never cashable; returns come only from project revenue,
+never from new inflows.**
 
 ---
 
